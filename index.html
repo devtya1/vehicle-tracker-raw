@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://www.gstatic.com/firebasejs/7.6.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.6.2/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/live/3.1/firebase.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realistic Vehicle Tracking</title>
+    <style>
+        @keyframes sweep {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes blip {
+            0% { opacity: 1; transform: scale(1.3); }
+            100% { opacity: 0; transform: scale(0.8); }
+        }
+
+        .blip {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #f00;
+            border-radius: 50%;
+            top: 35%;
+            left: 65%;
+            display: none;
+            animation: blip 1.5s infinite;
+        }
+
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            100% { opacity: 0; visibility: hidden; }
+        }
+
+        @keyframes fadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+
+        body {
+            background: #000;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        #container {
+            width: 90%;
+            max-width: 400px;
+            padding: 20px;
+            border: 2px solid #0f0;
+            border-radius: 10px;
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #0f0;
+            background: black;
+            color: #0f0;
+            font-size: 18px;
+        }
+
+        button:hover {
+            background: #0f0;
+            color: black;
+            cursor: pointer;
+        }
+
+        #output, #location, #vehicle-details {
+            margin-top: 20px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        #radar {
+            display: none;
+            width: 250px;
+            aspect-ratio: 1;
+            margin: 20px auto;
+            border-radius: 50%;
+            border: 2px solid #0f0;
+            background: radial-gradient(circle, rgba(0, 255, 0, 0.2) 0%, rgba(0, 0, 0, 1) 70%);
+            position: relative;
+        }
+
+        #scanner-line {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform-origin: center;
+            animation: sweep 2.5s linear infinite;
+        }
+
+        .fade-out {
+            animation: fadeOut 2s forwards;
+        }
+
+        .fade-in {
+            animation: fadeIn 2s forwards;
+        }
+
+        #header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 10px;
+            background: black;
+            border-bottom: 2px solid #0f0;
+            font-size: 70px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 10;
+        }
+
+        #location, #vehicle-details {
+            display: none;  /* Initially hidden */
+        }
+    </style>
+</head>
+<body>
+    <div id="header">Research & Analysis Wing</div>
+    <h1>Vehicle Tracker</h1>
+
+    <div id="container">
+        <p>Enter Vehicle Number:</p>
+        <input type="text" id="vehicleNumber" placeholder="MH12AB1234">
+        <button onclick="requestTracking()">Track</button>
+        <p id="output">System Initializing...</p>
+
+        <div id="radar">
+            <div id="scanner-line"></div>
+            <div class="blip"></div>
+        </div>
+
+        <p id="countdown" style="display: none; font-size: 16px; color: yellow;"></p>
+
+        <p id="location" style="font-size: 18px; font-weight: bold; color: cyan;"></p>
+        <p id="vehicle-details" style="font-size: 16px; color: lightgreen;"></p>
+    </div>
+
+    <audio id="beepSound" src="beep.wav" preload="auto"></audio>u
+
+    <audio id="accessGranted" src="access-granted.mp3" preload="auto"></audio>
+
+    <script>
+
+        function getRandomVehicleDetails() {
+            const owners = ["Raj Malhotra", "Priya Sharma", "Amit Verma", "Sanjay Gupta"];
+            const models = ["Hyundai Creta", "Toyota Fortuner", "Maruti Swift", "Honda City"];
+            const colors = ["Black", "White", "Blue", "Red"];
+            const regDates = ["2018", "2020", "2017", "2019"];
+
+            return {
+                owner: owners[Math.floor(Math.random() * owners.length)],
+                model: models[Math.floor(Math.random() * models.length)],
+                color: colors[Math.floor(Math.random() * colors.length)],
+                regYear: regDates[Math.floor(Math.random() * regDates.length)]
+            };
+        }
+
+        function requestTracking() {
+            const firebaseConfig = {
+  apiKey: "AIzaSyDnhI5uVXNbkQYUjVGTcStUDK4D5I8_b6Y",
+  authDomain: "vehicle-77d76.firebaseapp.com",
+  databaseURL: "https://vehicle-77d76-default-rtdb.firebaseio.com",
+  projectId: "vehicle-77d76",
+  storageBucket: "vehicle-77d76.firebasestorage.app",
+  messagingSenderId: "332251039022",
+  appId: "1:332251039022:web:1620f8bddc5f7d6d9666bf"
+};
+
+// Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        
+            let vehicleNum = document.getElementById("vehicleNumber").value.trim().toUpperCase();
+            let output = document.getElementById("output");
+            let beepSound = document.getElementById("beepSound");
+            let accessGranted = document.getElementById("accessGranted");
+
+            if (vehicleNum === "") {
+                output.innerHTML = "⚠️ Please enter a vehicle number.";
+                output.style.color = "red";
+                return;
+            }
+
+            output.innerHTML = "⏳ Waiting for permission...";
+            output.style.color = "yellow";
+
+            const db = firebase.database();
+db.ref("permission").on("value", (snapshot) => {
+    if (snapshot.val() === true) {
+        accessGranted.currentTime = 0;
+        accessGranted.play();
+        trackVehicle(vehicleNum);
+    }
+});
+
+        }
+
+        function trackVehicle(vehicleNum) {
+            let output = document.getElementById("output");
+            let radar = document.getElementById("radar");
+            let countdown = document.getElementById("countdown");
+            let blip = document.querySelector(".blip");
+
+            let vehicleDetails = getRandomVehicleDetails();
+
+            output.innerHTML = `📡 Triangulating vehicle coordinates...`;
+            radar.style.display = "block";
+            countdown.style.display = "block";
+            blip.style.display = "block";
+
+            startCountdown(30, vehicleNum, vehicleDetails);
+        }
+
+        function startCountdown(seconds, vehicleNum, vehicleDetails) {
+            let countdown = document.getElementById("countdown");
+            let radar = document.getElementById("radar");
+            let output = document.getElementById("output");
+            let location = document.getElementById("location");
+            let detailsBox = document.getElementById("vehicle-details");
+
+            let interval = setInterval(() => {
+                countdown.innerHTML = `⏳ Triangulating... ${seconds}s remaining`;
+                beepSound.currentTime = 0;
+                beepSound.play();
+                if (seconds <= 0) {
+                    clearInterval(interval);
+
+                    // Hide radar and countdown smoothly
+                    radar.classList.add("fade-out");
+                    output.classList.add("fade-out");
+                    countdown.classList.add("fade-out");
+
+                    setTimeout(() => {
+                        radar.style.display = "none";
+                        output.style.display = "none";
+                        countdown.style.display = "none";
+
+                        // Show the location and vehicle details
+                        location.innerHTML = `📍 Location: JM Aroma, Noida Sector 75, New Delhi, India`;
+                        detailsBox.innerHTML = `🚗 ${vehicleNum} - ${vehicleDetails.model}, ${vehicleDetails.color}, Owner: ${vehicleDetails.owner}`;
+
+                        location.style.display = "block";
+                        detailsBox.style.display = "block";
+
+                        location.classList.add("fade-in");
+                        detailsBox.classList.add("fade-in");
+                    }, 2000);
+                }
+                seconds--;
+            }, 1000);
+        }
+
+        setTimeout(() => { permission = true; }, Math.random() * 5000 + 2000);
+    </script>
+</body>
+</html>
